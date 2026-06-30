@@ -1,0 +1,10 @@
+{
+  "sql2sr_train_data": {
+    "file_name": "sql2sr_train_data.json",
+    "columns": {
+      "prompt": "instruction",
+      "response": "output",
+      "system": "system"
+    }
+  }
+}

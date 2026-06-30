@@ -1,0 +1,78 @@
+# Multi-Turn Text-to-SQL Agent 依赖包
+
+# ===== 核心框架 =====
+# FastAPI 服务
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+
+# 配置管理
+pyyaml>=6.0
+
+# ===== API 调用（默认模式）=====
+openai>=1.30.0
+
+# ===== 数据库 =====
+# SQLite3（Python 标准库，无需安装）
+# MySQL 支持（可选）
+# PyMySQL>=1.1.0
+
+# PostgreSQL 支持（可选）
+# psycopg2-binary>=2.9.0
+
+# SQLAlchemy（ORM，可选）
+sqlalchemy>=2.0.0
+
+# ===== 日志 =====
+loguru>=0.7.0
+
+# ===== 工具 =====
+tqdm>=4.66.0
+numpy>=1.26.0
+
+# ===== Web 前端 =====
+streamlit>=1.40.0
+pandas>=2.2.0
+
+# ===== 本地模型加载（可选，使用 --use_small_model 时需要）=====
+# 取消注释以下行以启用本地小模型（Llama-3.1-8B + LoRA）
+# 注意：torch 约 2GB 下载，安装前请确保有稳定网络
+
+# PyTorch（CUDA 12.1）
+# 安装命令：pip install torch --index-url https://download.pytorch.org/whl/cu121
+# torch>=2.4.0
+
+# Transformers 生态
+# transformers>=4.44.0
+# peft>=0.12.0
+# accelerate>=0.33.0
+# bitsandbytes>=0.43.0
+
+# ===== 评估（可选）=====
+# sqlparse>=0.5.0
+
+# ===== 开发工具（可选）=====
+# pytest>=8.0.0
+# pytest-asyncio>=0.24.0
+# black>=24.0.0
+# isort>=5.13.0
+
+# ===== 安装说明 =====
+# 1. 默认模式（API 调用，不加载本地模型）：
+#    pip install -r requirements.txt
+#    （torch, transformers 等已注释，不会安装）
+#
+# 2. 本地模型模式（需要 GPU 和显存 >= 6GB）：
+#    (1) 取消注释 torch, transformers, peft, accelerate, bitsandbytes
+#    (2) 安装 PyTorch（CUDA 版本）：
+#        pip install torch --index-url https://download.pytorch.org/whl/cu121
+#    (3) 安装其他依赖：
+#        pip install transformers peft accelerate bitsandbytes
+#    (4) 运行测试：
+#        python test_local_model.py --use_small_model
+#
+# 3. Web 前端模式（Streamlit）：
+#    pip install streamlit pandas
+#    streamlit run frontend/streamlit_app.py
+#
+# 4. Python 版本要求：>=3.10

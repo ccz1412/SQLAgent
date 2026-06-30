@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"cat /home/user4/XiaZY/SQL-Reproduce/Reproduce_by_llama3_8B/README.md\")",
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"ls -la /home/user4/XiaZY/SQL-Reproduce/Reproduce_by_llama3_8B/results/\")",
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"wc -l /home/user4/XiaZY/SQL-Reproduce/Reproduce_by_llama3_8B/results/*.txt\")",
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"grep -E '\\(Accuracy|accuracy\\)' /home/user4/XiaZY/SQL-Reproduce/Reproduce_by_llama3_8B/results/log_*.txt | tail -10\")",
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"wc -l /home/user4/XiaZY/SQL-Reproduce/Reproduce_by_llama3_8B/results/*brid*\")",
+      "Bash(ssh -i ~/.ssh/id_rsa_u4 user4@172.31.226.97 \"ls -la /home/user4/XiaZY/dataset/Brid/ && wc -l /home/user4/XiaZY/dataset/Brid/dev_20240627/dev.json\")"
+    ]
+  }
+}

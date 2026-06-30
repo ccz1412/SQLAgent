@@ -1,5 +1,5 @@
 dep/model/
-config/
+config
 *.safetensors
 *.bin
 *.pt
@@ -28,6 +28,6 @@ Thumbs.db
 *.jpeg
 
 # Large data/JSON files (>10MB)
-dat/brid_trajectory/
-dat/spider_trajectory/train_trajectoryv1.json
+data/brid_trajectory/
+data/spider_trajectory/train_trajectoryv1.json
 exp/ft_data/sql2sr_train_data.json

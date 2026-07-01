@@ -1,5 +1,7 @@
 dep/model/
 config
+venv
+data
 *.safetensors
 *.bin
 *.pt

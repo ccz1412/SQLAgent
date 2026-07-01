@@ -28,4 +28,4 @@ from .routes import dialogue
 app.include_router(dialogue.router, prefix="/api/v1", tags=["dialogue"])
 
 # 导入 schemas（供路由使用）
-from .schemas import request, response
+from .schemas import request

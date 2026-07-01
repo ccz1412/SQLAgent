@@ -83,7 +83,7 @@ frontend/
 
 The app looks for databases in these locations:
 
-1. `dat/spider_databases/{db_id}/{db_id}.sqlite` (Spider dataset)
+1. `data/spider_databases/{db_id}/{db_id}.sqlite` (Spider dataset, read from `config/db_config.yaml`)
 2. `test_databases/{db_id}.sqlite` (Custom test databases)
 
 To add a new database:
@@ -148,7 +148,7 @@ streamlit run frontend/streamlit_app.py
 ### Issue: "No databases found"
 
 **Solution**: 
-- Check that `dat/spider_databases/` exists and contains `.sqlite` files
+- Check that `data/spider_databases/` exists and contains `.sqlite` files
 - Or add custom databases to `test_databases/`
 
 ### Issue: "DialogueManager initialization failed"

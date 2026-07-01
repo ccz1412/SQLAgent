@@ -28,6 +28,7 @@ sys.path.insert(0, str(project_root))
 
 from src.utils.logger import get_logger
 from src.evaluation.metrics import exact_match, execution_accuracy, clause_accuracy
+from src.utils.config_loader import load_db_root
 
 logger = get_logger(__name__)
 
@@ -50,11 +51,11 @@ class Evaluator:
         Args:
             dataset: 数据集名称（"spider", "bird", "custom"）
             split: 数据分割（"train", "dev", "test"）
-            db_dir: 数据库文件目录（默认：dat/spider_databases/）
+            db_dir: 数据库文件目录（默认：从 config/db_config.yaml 读取 spider.db_root）
         """
         self.dataset = dataset
         self.split = split
-        self.db_dir = db_dir or (project_root / "dat" / "spider_databases")
+        self.db_dir = db_dir or load_db_root(dataset=dataset)
         
         # 加载数据集
         self.data = self._load_dataset()
@@ -74,7 +75,7 @@ class Evaluator:
         
         if self.dataset == "spider":
             # Spider 数据集格式
-            data_path = project_root / "dat" / "spider" / f"{self.split}.json"
+            data_path = project_root / "data" / "spider" / f"{self.split}.json"
             
             if not data_path.exists():
                 logger.error(f"数据集文件不存在：{data_path}")
@@ -88,7 +89,7 @@ class Evaluator:
         
         elif self.dataset == "bird":
             # BIRD 数据集格式
-            data_path = project_root / "dat" / "bird" / f"{self.split}.json"
+            data_path = project_root / "data" / "bird" / f"{self.split}.json"
             
             if not data_path.exists():
                 logger.error(f"数据集文件不存在：{data_path}")

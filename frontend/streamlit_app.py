@@ -100,11 +100,13 @@ def init_session_state():
 
 
 def load_available_databases():
-    """Load available databases from Spider/BIRD datasets."""
+    """Load available databases from Spider/BIRD datasets and custom test databases."""
+    from src.utils.config_loader import load_db_root
+
     available_dbs = []
 
-    # Check Spider databases
-    spider_path = PROJECT_ROOT / "dat" / "spider_databases"
+    # Check Spider databases from config
+    spider_path = PROJECT_ROOT / load_db_root(dataset="spider")
     if spider_path.exists():
         for db_dir in spider_path.iterdir():
             if db_dir.is_dir():
@@ -142,6 +144,19 @@ def get_dialogue_manager():
     return st.session_state.dialogue_manager
 
 
+def _generate_reply(response: dict) -> str:
+    """根据 SQL 执行结果生成自然语言回复（与 API 路由保持一致）"""
+    if not response.get("success"):
+        return f"抱歉，执行失败：{response.get('error', '未知错误')}"
+
+    result = response.get("result")
+    if not result:
+        return "查询完成，但没有返回结果。"
+
+    row_count = result.get("row_count", 0)
+    return f"查询成功，共找到 {row_count} 条记录。"
+
+
 def process_user_message(user_input: str):
     """
     Process user message through the DialogueManager.
@@ -163,17 +178,22 @@ def process_user_message(user_input: str):
         }
 
     try:
-        # Process the turn
-        result = dm.process_turn(user_input)
+        # 调用 DialogueManager 处理消息
+        result = dm.process_message(user_input)
+
+        # 生成自然语言回复
+        response_text = _generate_reply(result)
+        if result.get("is_follow_up"):
+            response_text = f"🔄 （追问处理）\n\n{response_text}"
 
         return {
-            "response": result.get("response", ""),
+            "response": response_text,
             "sql": result.get("sql"),
             "result": result.get("result"),
             "success": result.get("success", False),
             "error": result.get("error"),
             "is_follow_up": result.get("is_follow_up", False),
-            "turn_id": result.get("turn_id")
+            "turn_id": None
         }
     except Exception as e:
         return {
@@ -242,7 +262,7 @@ def sidebar_settings():
             )
             st.session_state.db_id = selected_db
         else:
-            st.warning("No databases found. Please check `dat/spider_databases/` or `test_databases/`.")
+            st.warning("No databases found. Please check `data/spider_databases/` or `test_databases/`.")
             custom_db = st.text_input("Or enter custom db_id:", key="custom_db")
             st.session_state.db_id = custom_db
 

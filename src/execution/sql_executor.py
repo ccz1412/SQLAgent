@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
+from src.utils.config_loader import load_db_root
+
 
 @dataclass
 class ExecutionResult:
@@ -37,27 +39,34 @@ class SQLExecutor:
             raise FileNotFoundError(f"数据库文件不存在: {self.db_path}")
     
     @classmethod
-    def from_db_id(cls, db_id: str, data_root: str = "data/spider_databases") -> "SQLExecutor":
+    def from_db_id(cls, db_id: str, data_root: Optional[str] = None) -> "SQLExecutor":
         """
         从数据库 ID 创建执行器
-        
+
+        默认从 config/db_config.yaml 的 spider.db_root 读取数据库根目录，
+        也可通过 data_root 参数显式覆盖。
+
         Args:
             db_id: 数据库 ID（如 "student"）
-            data_root: 数据库根目录（相对于项目根目录）
-            
+            data_root: 数据库根目录（相对于项目根目录），None 时读取配置
+
         Returns:
             SQLExecutor 实例
         """
         project_root = Path(__file__).resolve().parent.parent.parent
+        if data_root is None:
+            data_root = load_db_root()
         db_dir = project_root / data_root / db_id
-        
+
         # 查找 .sqlite 或 .db 文件
         for ext in [".sqlite", ".db"]:
             db_file = db_dir / f"{db_id}{ext}"
             if db_file.exists():
                 return cls(str(db_file))
-        
+
         raise FileNotFoundError(f"未找到数据库文件: {db_dir}")
+
+
     
     def execute(self, sql: str, timeout: int = 30, max_rows: int = 100) -> ExecutionResult:
         """

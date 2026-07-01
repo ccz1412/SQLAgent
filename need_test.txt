@@ -1,0 +1,208 @@
+# 测试跟踪清单 (Test Tracking List)
+
+记录所有新增或修改的文件，包含修改信息、需要测试的功能及相关测试命令。
+每次修改/新增文件后自动更新此清单。
+
+---
+
+## 格式说明
+- `[M]` = 已修改 (Modified)
+- `[N]` = 新增 (New)
+- `[D]` = 待删除 (Deleted)
+- `✅` = 已测试通过
+- `❌` = 测试失败
+- `⏳` = 待测试
+
+---
+
+## 2026-07-01 更新
+
+### 📝 修改记录
+
+#### 1. [M] `src/agent/react_agent.py`
+**修改内容：**
+- ✅ 修复 `_build_review_prompt` 方法中 `{schema}` 未定义问题 → 改为 `{self.schema}`
+- ✅ 重写 `_call_local_model` 方法 → 使用 `SmallModel.generate()` 接口
+- ✅ 添加 `_call_local_model_raw` 方法 → 作为降级方案（直接使用 transformer 接口）
+
+**需要测试的功能：**
+- [ ] 双模型纠错架构（API 生成 + 本地 Llama 审查）
+- [ ] `_review_with_correction_model` 方法调用本地模型
+- [ ] 执行成功后的纠错 LLM 审查流程
+- [ ] 执行失败后的纠错流程
+
+**测试命令：**
+```bash
+# 测试 1: 基本功能测试（不启用本地纠错模型）
+cd E:\LLM_code_general\sqlcode-master
+python run_app.py agent --question "列出所有学生" --db_id student_db --use_correction_model false
+
+# 测试 2: 启用本地纠错模型（需要 GPU 和本地模型）
+python run_app.py agent --question "列出所有计算机科学专业的学生" --db_id student_db --use_correction_model true
+
+# 测试 3: 语法检查
+python -m py_compile src/agent/react_agent.py
+```
+
+**依赖环境：**
+- ✅ `pyyaml` 已安装
+- ⚠️ 本地模型测试需要：`torch`, `transformers`, `peft`, `bitsandbytes`
+- ⚠️ 本地模型路径：`dep/model/Meta-Llama-3___1-8B-Instruct/`
+- ⚠️ LoRA 权重路径：`exp/outputs/sql2sr_lora/`
+
+---
+
+#### 2. [M] `README_V2.md`
+**修改内容：**
+- ✅ 更新功能特性列表（添加：意图检测、双模型纠错、Streamlit 界面）
+- ✅ 更新项目结构（删除 V2 文件引用）
+- ✅ 添加项目架构图（ASCII 图）
+- ✅ 添加双模型纠错流程详解图
+- ✅ 添加意图检测流程图
+- ✅ 更新核心模块说明
+
+**需要测试的功能：**
+- [ ] 文档准确性验证
+- [ ] 架构图是否清晰
+
+**测试命令：**
+```bash
+# 在浏览器中打开查看
+start README_V2.md
+```
+
+---
+
+#### 3. [M] `README.md`
+**修改内容：**
+- ✅ 更新功能特性列表
+- ✅ 添加简化的项目架构说明
+- ✅ 添加指向 `README_V2.md` 的链接
+
+**需要测试的功能：**
+- [ ] 文档链接是否有效
+
+**测试命令：**
+```bash
+# 在浏览器中打开查看
+start README.md
+```
+
+---
+
+#### 4. [M] `src/README.md`
+**修改内容：**
+- ✅ 重写以反映当前项目状态
+- ✅ 更新子目录结构表格（添加 `models/`, `correction/`, `evaluation/`）
+- ✅ 添加新增功能说明（意图检测、双模型纠错、Streamlit）
+- ✅ 更新依赖关系
+
+**需要测试的功能：**
+- [ ] 文档准确性验证
+
+---
+
+### 🗑️ 待手动删除的文件
+
+| 状态 | 文件路径 | 说明 | 操作 |
+|------|----------|------|------|
+| [D] | `src/agent/react_agent_v2.py` | 功能已合并到 `react_agent.py` | 请手动删除 |
+| [D] | `src/agent/sql_generator_v2.py` | 功能已合并到 `sql_generator.py` | 请手动删除 |
+
+**删除命令（在你的服务器上运行）：**
+```bash
+cd E:\LLM_code_general\sqlcode-master
+del src\agent\react_agent_v2.py
+del src\agent\sql_generator_v2.py
+```
+
+---
+
+## 历史记录
+
+### 2026-06-25（初始创建）
+- **[N] `src/agent/intent_detector.py`**
+  - 功能：意图检测（SQL_QUERY / CHAT / REJECT）
+  - 需要测试：意图分类准确性
+  - 测试命令：
+    ```bash
+    cd E:\LLM_code_general\sqlcode-master
+    python -m py_compile src/agent/intent_detector.py
+    python run_app.py dialogue --db_id student_db
+    # 测试输入：
+    # - "你好" → 应该走 CHAT 流程
+    # - "列出所有学生" → 应该走 SQL_QUERY 流程
+    # - "今天天气怎么样" → 应该走 REJECT 流程
+    ```
+
+- **[M] `src/dialogue/dialogue_manager.py`**
+  - 功能：集成意图检测
+  - 需要测试：多轮对话 + 意图检测集成
+  - 测试命令：
+    ```bash
+    python run_app.py dialogue --db_id student_db
+    ```
+
+- **[N] `frontend/streamlit_app.py`**
+  - 功能：Streamlit Web 界面
+  - 需要测试：Web 界面启动和基本功能
+  - 测试命令：
+    ```bash
+    pip install streamlit
+    streamlit run frontend/streamlit_app.py
+    ```
+
+---
+
+## 测试检查清单（总览）
+
+### 1. 语法检查 ✅
+```bash
+cd E:\LLM_code_general\sqlcode-master
+python -m py_compile src/agent/react_agent.py
+python -m py_compile src/agent/intent_detector.py
+python -m py_compile src/dialogue/dialogue_manager.py
+```
+
+### 2. 核心功能测试 ⏳
+- [ ] 意图检测功能测试（`IntentDetector`）
+- [ ] 双模型纠错功能测试（`ReactAgent` + 本地 Llama）
+- [ ] 多轮对话集成测试（`DialogueManager`）
+- [ ] Streamlit 界面测试
+
+### 3. 端到端测试 ⏳
+```bash
+# 测试 1: 命令行模式
+python run_app.py agent --question "列出所有学生" --db_id student_db
+
+# 测试 2: 多轮对话模式
+python run_app.py dialogue --db_id student_db
+
+# 测试 3: API 服务模式
+python run_app.py api
+# 然后访问 http://localhost:8000/docs
+
+# 测试 4: Streamlit Web 界面
+streamlit run frontend/streamlit_app.py
+```
+
+---
+
+## 常见问题排查
+
+### Q1: 本地模型加载失败？
+**A**: 确保已安装依赖：
+```bash
+pip install torch transformers peft accelerate bitsandbytes
+```
+
+### Q2: 意图检测不准确？
+**A**: 检查 `config/api_config.yaml` 中的 API 配置是否正确。
+
+### Q3: 双模型纠错未生效？
+**A**: 检查 `config/agent_config.yaml` 中的 `use_correction_model` 是否设置为 `true`。
+
+---
+
+**最后更新**: 2026-07-01 21:45
+**维护者**: AI Assistant (WorkBuddy)

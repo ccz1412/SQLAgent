@@ -1,30 +1,43 @@
 # Multi-Turn Text-to-SQL Agent
 
-基于 ReAct 架构的多轮对话 Text-to-SQL AI 应用，支持 Clause 级纠错。
-
-## 项目背景
-
-本项目在单轮 SQL→SR→纠错科研框架基础上，扩展为完整的多轮对话 Text-to-SQL AI 应用：
-- 支持多轮对话中处理多个 SQL 查询
-- 集成 Clause 级纠错 Agent
-- 支持上下文维护、指代消解、SQL 历史管理
-- 提供标准 API 接口供后续前端对接
+基于 ReAct 架构的多轮对话 Text-to-SQL 系统，支持意图检测、双模型纠错（API 生成 + 本地 Llama 审查）、Clause 级纠错。
 
 ## 功能特性
 
 ### 已实现 ✅
-- ✅ ReAct 推理循环（小模型决策 + 大模型执行）
-- ✅ 多轮对话管理（状态机、上下文维护）
-- ✅ SQL 生成与执行
-- ✅ 简单纠错（基于规则）
-- ✅ FastAPI HTTP 接口
-- ✅ 命令行交互模式
+- ✅ **意图检测（Intent Detection）**：自动区分"查询数据库"和"聊天"，过滤无关问题
+- ✅ **多轮对话**：支持追问、指代消解（"上一个"、"它"）
+- ✅ **双模型纠错架构**：API 生成 SQL + 本地 Llama-3.1-8B 审查/纠错
+- ✅ **ReAct 推理循环**：生成 → 执行 → 纠错 → 再生成
+- ✅ **Clause 级纠错**：定位错误 clause，针对性纠正
+- ✅ **模型选择**：本地小模型（低成本）或 API 大模型（高质量）
+- ✅ **长期记忆**：短期记忆（当前对话）+ 长期记忆（ChromaDB，可选）
+- ✅ **评估模块**：Exact Match、Execution Accuracy、Clause Accuracy
+- ✅ **API 服务**：FastAPI 接口，支持 HTTP 调用
+- ✅ **Web 界面**：Streamlit 前端（可选）
 
 ### 开发中 🚧
-- 🚧 Clause 级纠错（GRPO 训练的小模型）
+- 🚧 完善 Clause 级纠错（GRPO 训练的小模型集成）
 - 🚧 指代消解（规则版已实现，计划接入小模型）
-- 🚧 长期记忆系统（ChromaDB 向量库）
-- 🚧 GRPO 训练模块
+- 🚧 长期记忆系统（ChromaDB 向量库完善）
+
+## 项目架构
+
+```
+用户 → [意图检测] → SQL_QUERY? → [ReAct Agent]
+                        │
+                        ├── CHAT → 知识库回答
+                        └── REJECT → 礼貌拒绝
+
+ReAct Agent 流程：
+  生成LLM(API) → SQL执行 → 成功?
+                              ├── 是 → 纠错LLM(本地)审查 → 需要纠正?
+                              │                    ├── 是 → 纠正 → 重新执行
+                              │                    └── 否 → 返回结果
+                              └── 否 → 纠错 → 重新生成SQL
+```
+
+详细架构图见 [README_V2.md](README_V2.md)。
 
 ## 项目结构
 

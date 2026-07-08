@@ -294,23 +294,6 @@ class ReactAgent:
         error_message: Optional[str],
         question: str
     ) -> CorrectionReviewResult:
-        """
-        使用纠错模型审查 SQL
-
-        这是双模型架构的核心方法。
-        将生成的SQL交给本地微调过的Llama-3.1-8B模型，
-        让它判断这个SQL是否需要纠正。
-
-        Args:
-            sql: 待审查的SQL
-            exec_success: 是否执行成功
-            error_message: 错误信息（如果失败）
-            question: 原始用户问题
-
-        Returns:
-            CorrectionReviewResult
-        """
-        # 如果没有启用纠错模型，默认不纠正
         if not self.use_correction_model:
             return CorrectionReviewResult(
                 needs_correction=False,

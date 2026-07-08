@@ -63,6 +63,13 @@ class ModelConfig:
         self.small_device = self.small_model_config.get("device", "auto")
         self.small_load_in_4bit = self.small_model_config.get("load_in_4bit", True)
         
+        # HuggingFace 配置（fast-attention 等）
+        hf_config = self.small_model_config.get("huggingface", {})
+        self.hf_load_in_4bit = hf_config.get("load_in_4bit", True)
+        self.hf_load_in_8bit = hf_config.get("load_in_8bit", False)
+        self.hf_torch_dtype = hf_config.get("torch_dtype", "bfloat16")
+        self.hf_use_flash_attention_2 = hf_config.get("use_flash_attention_2", True)
+        
         # 大模型配置
         self.large_model_name = self.large_model_config.get("model_name", "glm-4-flash")
         self.large_base_url = self.large_model_config.get("base_url", "")
@@ -160,7 +167,10 @@ def get_model(
                 base_model_path=config.small_base_path,
                 lora_path=config.small_lora_path,
                 device=config.small_device,
-                load_in_4bit=config.small_load_in_4bit
+                load_in_4bit=config.hf_load_in_4bit,
+                load_in_8bit=config.hf_load_in_8bit,
+                torch_dtype=config.hf_torch_dtype,
+                use_flash_attention_2=config.hf_use_flash_attention_2
             )
         return _small_model_instance
     

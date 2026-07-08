@@ -1,15 +1,51 @@
-# Multi-Turn Text-to-SQL Agent
+# Multi-Turn Text-to-SQL Agent (v2)
 
-基于 ReAct 架构的多轮对话 Text-to-SQL 系统，支持意图检测、双模型纠错（API 生成 + 本地 Llama 审查）、Clause 级纠错。
+基于 ReAct 架构的多轮对话 Text-to-SQL 系统，支持意图检测、双模型纠错架构（API 生成 + 本地 Llama 分析审查）、语义检测。
+
+## v2 更新（2026-07-03）
+
+### 核心优化
+
+1. **集中式 Prompt 管理** — 所有 Prompt 模板统一管理在 `src/prompts/prompt_templates.py`，各模块从此文件导入调用，便于维护和调优。
+
+2. **新的纠错流程**
+   - 执行失败 → Agent(本地Llama) **分析错误** → LLM(API) **基于诊断重新生成**
+   - 执行成功 → Agent(本地Llama) **语义检测** → 如有问题 → LLM(API) **基于语义分析优化**
+   - **终止条件 1**：连续执行失败 3 次
+   - **终止条件 2**：执行成功后，语义检测触发 LLM 重新生成，连续 2 次 SQL 无变化
+
+3. **意图检测优化**
+   - 非查询类输入：明确告知用户"不是数据库查询，请重新输入"
+   - 使用集中式 Prompt 构建
+
+4. **参考架构**
+   - 错误分析流程参考 MAC-SQL 的执行反馈机制
+   - 语义检测流程参考 MAGIC 的自省/反思方式
+   - Prompt 组织结构参考 SHARE 的分层模板系统
+
+### 修改的文件
+| 文件 | 变更说明 |
+|------|----------|
+| `src/prompts/prompt_templates.py` | **新建** — 集中式 Prompt 模板文件（8类 Prompt + 构建函数） |
+| `src/prompts/__init__.py` | **新建** — 模块包文件 |
+| `src/agent/react_agent.py` | **重写** — 新纠错流程、Agent分析/语义检测、错误分析+语义检测结果类 |
+| `src/agent/sql_generator.py` | **重构** — 移除内联 Prompt，改用集中式模板 |
+| `src/agent/intent_detector.py` | **重构** — 移除内联 Prompt，改用集中式模板；非查询拒绝消息优化 |
+| `src/correction/clause_corrector.py` | **重构** — 移除内联 `_build_correction_prompt`，改用集中式模板 |
+| `README.md` | **更新** — 记录 v2 变更 |
 
 ## 功能特性
 
 ### 已实现 ✅
-- ✅ **意图检测（Intent Detection）**：自动区分"查询数据库"和"聊天"，过滤无关问题
-- ✅ **多轮对话**：支持追问、指代消解（"上一个"、"它"）
-- ✅ **双模型纠错架构**：API 生成 SQL + 本地 Llama-3.1-8B 审查/纠错
-- ✅ **ReAct 推理循环**：生成 → 执行 → 纠错 → 再生成
+- ✅ **意图检测（Intent Detection）**：自动区分"查询数据库"和"聊天"，非查询明确拒绝
+- ✅ **多轮对话**：支持追问、指代消解
+- ✅ **双模型纠错架构 v2**：API 生成 SQL + 本地 Llama 分析错误/语义检测
+- ✅ **Agent 错误分析**：本地 Llama 分析执行失败原因（错误类型、位置、描述、修复建议）
+- ✅ **Agent 语义检测**：本地 Llama 审查 SQL 语义是否匹配用户问题
+- ✅ **LLM 基于分析重新生成**：API 大模型根据 Agent 的诊断报告重新生成 SQL
+- ✅ **优先纠错终止条件**：连续失败 3 次或语义检测 2 次无变化
 - ✅ **Clause 级纠错**：定位错误 clause，针对性纠正
+- ✅ **集中式 Prompt 管理**：所有 Prompt 统一在 `src/prompts/prompt_templates.py`
 - ✅ **模型选择**：本地小模型（低成本）或 API 大模型（高质量）
 - ✅ **长期记忆**：短期记忆（当前对话）+ 长期记忆（ChromaDB，可选）
 - ✅ **评估模块**：Exact Match、Execution Accuracy、Clause Accuracy
@@ -24,38 +60,59 @@
 ## 项目架构
 
 ```
-用户 → [意图检测] → SQL_QUERY? → [ReAct Agent]
-                        │
-                        ├── CHAT → 知识库回答
-                        └── REJECT → 礼貌拒绝
+用户 → [意图检测] → 非查询? → REPLACE提示重新输入
+                   → 查询? → [ReAct Agent v2]
 
-ReAct Agent 流程：
-  生成LLM(API) → SQL执行 → 成功?
-                              ├── 是 → 纠错LLM(本地)审查 → 需要纠正?
-                              │                    ├── 是 → 纠正 → 重新执行
-                              │                    └── 否 → 返回结果
-                              └── 否 → 纠错 → 重新生成SQL
+ReAct Agent v2 流程：
+  API大模型生成SQL → 执行 → 成功?
+                             ├── 是 → Agent(本地Llama)语义检测 → 语义OK?
+                             │                    ├── 是 → 返回结果
+                             │                    └── 否 → LLM(API)基于分析优化 → 重新执行
+                             │                              └── 第2次SQL无变化? → 接受结果
+                             └── 否 → Agent(本地Llama)错误分析 → LLM(API)基于诊断重新生成 → 重新执行
+                                      └── 连续失败3次? → 终止纠错
+
+终止条件：
+  - 连续执行失败 3 次
+  - 语义检测触发的第 2 次 LLM 重新生成后 SQL 无变化
+  - 达到最大推理轮数（默认 10）
 ```
 
-详细架构图见 [README_V2.md](README_V2.md)。
+## Prompt 管理
+
+所有 Prompt 模板集中在 `src/prompts/prompt_templates.py`，按功能分为 8 类：
+
+| 类别 | 说明 | 使用者 |
+|------|------|--------|
+| 意图检测 Prompt | 判断用户输入是否为数据库查询 | `intent_detector.py` |
+| SQL 生成 Prompt | 引导 LLM 生成 SQL | `sql_generator.py`, `react_agent.py` |
+| 错误分析 Prompt | Agent 分析执行失败原因 | `react_agent.py` (Agent = 本地 Llama) |
+| 语义检测 Prompt | Agent 审查 SQL 语义 | `react_agent.py` (Agent = 本地 Llama) |
+| 基于错误重新生成 | LLM 根据诊断修正 SQL | `react_agent.py` (LLM = API 大模型) |
+| 基于语义重新生成 | LLM 根据语义审查优化 SQL | `react_agent.py` (LLM = API 大模型) |
+| Clause 级纠错 | 细粒度定位和修正 SQL 子句 | `clause_corrector.py` |
+| 拒绝消息 | 非查询输入的拒绝模板 | `intent_detector.py`, `prompt_templates.py` |
 
 ## 项目结构
 
 ```
-E:\LLM_code_general\sqlcode-master\
+sqlcode-master/
 ├── config/                  # 配置文件（YAML 格式）
 ├── src/
-│   ├── agent/            # Agent 核心模块（ReAct 循环、SQL 生成）
+│   ├── prompts/          # 【v2 新增】集中式 Prompt 模板
+│   │   └── prompt_templates.py   # 所有 Prompt + 构建函数
+│   ├── agent/            # Agent 核心模块（ReAct 循环、意图检测、SQL 生成）
+│   ├── correction/       # Clause 级 SQL 纠错模块
 │   ├── dialogue/         # 多轮对话管理（状态机、上下文）
 │   ├── execution/        # SQL 执行引擎
-│   ├── utils/           # 通用工具（日志、配置加载、辅助函数）
-│   ├── train/           # 模型训练模块（已有）
-│   └── call_api/        # 大模型 API 调用（已有）
-├── api/                     # FastAPI 服务层
-├── prompts/                # Prompt 模板文件
-├── dep/model/              # 模型文件
-├── dat/                    # 数据集
-├── exp/                    # 实验输出
+│   ├── models/           # 模型加载（LargeModel/SmallModel）
+│   ├── utils/            # 通用工具（日志、配置加载、辅助函数）
+│   ├── train/            # 模型训练模块
+│   └── call_api/         # 大模型 API 调用
+├── api/                   # FastAPI 服务层
+├── dep/model/             # 模型文件
+├── data/                  # 数据集和数据库
+├── exp/                   # 实验输出
 └── run_app.py             # 运行入口
 ```
 
@@ -63,7 +120,7 @@ E:\LLM_code_general\sqlcode-master\
 
 ### 1. 安装依赖
 ```bash
-cd E:\LLM_code_general\sqlcode-master
+cd sqlcode-master
 pip install -r requirements.txt
 ```
 
@@ -74,91 +131,63 @@ pip install -r requirements.txt
 - 设置大模型 API 配置（`config/api_config.yaml`）
 
 ### 3. 准备数据库
-- 将 SQLite 数据库文件放在 `dat/` 目录下
-- 或使用 BIRD/Spider 数据集（需指定路径）
+- 将 SQLite 数据库文件放在 `data/database/` 目录下
 
 ## 使用方法
 
 ### 模式 1：启动 API 服务（推荐）
 ```bash
-# 启动 FastAPI 服务
 python run_app.py api
-
-# 服务地址：<http://localhost:8000>
-# API 文档：<http://localhost:8000/docs>
+# 服务地址：http://localhost:8000
+# API 文档：http://localhost:8000/docs
 ```
 
-#### 调用接口示例
+调用接口示例：
 ```bash
-# 发送对话消息
-curl <http://localhost:8000/api/v1/chat> \
+curl http://localhost:8000/api/v1/chat \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{"session_id":"test001","message":"列出所有学生","db_id":"student_db"}'
-
-# 获取会话历史
-curl <http://localhost:8000/api/v1/session/test001/history>
-
-# 健康检查
-curl <http://localhost:8000/api/v1/health>
 ```
 
-### 模式 2：命令行直接运行 Agent
+### 模式 2：命令行 Agent
 ```bash
-# 运行单个查询
 python run_app.py agent --question "列出所有学生" --db_id student_db
 ```
 
 ### 模式 3：交互式多轮对话
 ```bash
-# 启动交互式对话
 python run_app.py dialogue --db_id student_db
-
-# 然后输入问题：
-# 用户: 列出所有学生
-# Agent: [生成 SQL 并返回结果]
-# 用户: 只看计算机系的
-# Agent: [自动识别为追问，修改上一轮 SQL]
-# 用户: reset  # 重置对话
-# 用户: quit   # 退出
 ```
-
-## 配置说明
-
-### `config/model_config.yaml`
-模型加载参数：
-- `small_model`：小模型（Llama-3-8B）配置
-- `large_model`：大模型（Qwen-Coder-30B）配置
-
-### `config/api_config.yaml`
-API 调用参数：
-- `api`：Qwen API 端点、密钥、超时
-- `concurrency`：并发调用参数
-
-### `config/agent_config.yaml`
-Agent 超参数：
-- `react`：ReAct 循环参数（最大轮数、停止条件）
-- `sql_generation`：SQL 生成参数（温度、Few-shot）
-
-### `config/db_config.yaml`
-数据库配置：
-- `default_db_type`：默认数据库类型（sqlite）
-- `sqlite`：SQLite 配置
-- `spider`：Spider 数据集路径
 
 ## 核心模块说明
 
-### 1. ReAct Agent（`src/agent/react_agent.py`）
-实现 Reasoning + Acting 循环：
-- 生成 SQL → 执行验证 → 纠错 → 再执行
-- 最大推理轮数可在配置中设置
+### 1. ReAct Agent v2 (`src/agent/react_agent.py`)
+**双模型协作 + 结构化错误分析**：
+- **Agent (本地 Llama)**：分析执行错误（错误类型/位置/描述/修复建议）+ 语义检测
+- **LLM (API 大模型)**：生成 SQL + 基于 Agent 分析重新生成
 
-### 2. 多轮对话管理（`src/dialogue/dialogue_manager.py`）
-- 追问检测（基于规则）
-- 指代消解（简化版）
-- 上下文维护
+**错误分析结果** (`ErrorAnalysisResult`):
+```json
+{"error_type": "列名错误", "error_clause": "SELECT", "error_description": "...", "fix_suggestion": "..."}
+```
 
-### 3. SQL 执行引擎（`src/execution/sql_executor.py`）
+**语义检测结果** (`SemanticCheckResult`):
+```json
+{"semantics_correct": false, "issues": ["缺少 ORDER BY"], "description": "...", "confidence": 0.7}
+```
+
+### 2. Prompt 模板系统 (`src/prompts/prompt_templates.py`)
+- 8 类 Prompt 模板 + 对应构建函数
+- 修改 Prompt 只需编辑此文件
+- 各模块通过构建函数按参数动态生成
+
+### 3. 意图检测 (`src/agent/intent_detector.py`)
+- 使用集中式 Prompt 进行意图分类
+- 非查询输入：明确提示"请输入数据库查询"
+- 回退规则：关键词匹配（模型不可用时）
+
+### 4. SQL 执行引擎 (`src/execution/sql_executor.py`)
 - 安全执行（仅允许 SELECT）
 - 自动添加 LIMIT
 - 返回格式化结果
@@ -166,9 +195,10 @@ Agent 超参数：
 ## 注意事项
 
 1. **路径问题**：所有 Python 文件使用相对路径（相对于项目根目录）
-2. **模型加载**：小模型需要本地 GPU 加载，大模型使用 API 调用
+2. **模型加载**：小模型需要本地 GPU，大模型使用 API 调用
 3. **数据库**：默认使用 SQLite，可配置其他数据库
-4. **多轮对话**：目前使用内存存储，重启后丢失（后续接入持久化）
+4. **多轮对话**：目前使用内存存储，重启后丢失
+5. **Prompt 修改**：统一在 `src/prompts/prompt_templates.py` 中修改
 
 ## 开发计划
 

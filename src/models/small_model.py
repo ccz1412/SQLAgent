@@ -54,7 +54,8 @@ class SmallModel:
         device: str = "auto",
         load_in_4bit: bool = True,
         load_in_8bit: bool = False,
-        torch_dtype: str = "bfloat16"
+        torch_dtype: str = "bfloat16",
+        use_flash_attention_2: bool = True
     ):
         """
         初始化小模型
@@ -66,10 +67,12 @@ class SmallModel:
             load_in_4bit: 是否使用 4-bit 量化（推荐，显存 ~4-5GB）
             load_in_8bit: 是否使用 8-bit 量化（显存 ~8GB）
             torch_dtype: 模型精度（"bfloat16", "float16", "float32"）
+            use_flash_attention_2: 是否启用 fast attention（优先 flash_attention_2，回退 sdpa）
         """
         self.base_model_path = Path(base_model_path)
         self.lora_path = Path(lora_path) if lora_path else None
         self.device = self._get_device(device)
+        self.use_flash_attention_2 = use_flash_attention_2
         
         # 检查路径
         if not self.base_model_path.exists():
@@ -83,13 +86,37 @@ class SmallModel:
             load_in_4bit, load_in_8bit, torch_dtype
         )
         
-        print(f"[SmallModel] 模型加载完成 | 设备: {self.device} | LoRA: {lora_path or '无'}")
+        print(f"[SmallModel] 模型加载完成 | 设备: {self.device} | LoRA: {lora_path or '无'} | Fast-Attn: {getattr(self, '_attn_used', 'N/A')}")
     
     def _get_device(self, device: str) -> torch.device:
         """自动选择设备"""
         if device == "auto":
             return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         return torch.device(device)
+    
+    def _resolve_attention_implementation(self) -> str:
+        """
+        自动选择最优的 attention 实现：
+        1. flash_attention_2（最快，需安装 flash-attn）
+        2. sdpa（PyTorch 2.0+ 内置，次快，无需额外安装）
+        3. eager（标准实现，回退方案）
+        """
+        # 首先尝试 flash_attention_2
+        try:
+            import flash_attn  # noqa
+            print(f"[SmallModel] 检测到 flash-attn，使用 flash_attention_2")
+            return "flash_attention_2"
+        except ImportError:
+            pass
+        
+        # 回退到 sdpa（PyTorch 2.0+ 内置的高效 attention）
+        if hasattr(torch.nn.functional, 'scaled_dot_product_attention'):
+            print(f"[SmallModel] 使用 SDPA (Scaled Dot-Product Attention) - PyTorch 内置 fast-attention")
+            return "sdpa"
+        
+        # 最终回退到 eager
+        print(f"[SmallModel] 注意：未找到 fast attention 实现，使用标准 eager attention")
+        return "eager"
     
     def _load_model(self, load_in_4bit: bool, load_in_8bit: bool, torch_dtype: str):
         """
@@ -129,6 +156,15 @@ class SmallModel:
             "trust_remote_code": True
         }
         
+        # ========== Fast Attention 配置 ==========
+        if self.use_flash_attention_2 and self.device.type == "cuda":
+            # 尝试 flash_attention_2 → sdpa → eager
+            attn_impl = self._resolve_attention_implementation()
+            load_kwargs["attn_implementation"] = attn_impl
+            self._attn_used = attn_impl
+        else:
+            self._attn_used = "eager"
+        
         # 量化配置
         if load_in_4bit and self.device.type == "cuda":
             try:
@@ -139,7 +175,7 @@ class SmallModel:
                     bnb_4bit_use_double_quant=True,
                     bnb_4bit_quant_type="nf4"
                 )
-                print(f"[SmallModel] 使用 4-bit 量化（BitsAndBytes）")
+                print(f"[SmallModel] 使用 4-bit 量化（BitsAndBytes）+ {self._attn_used} attention")
             except ImportError:
                 print(f"[SmallModel] 警告：bitsandbytes 未安装，禁用 4-bit 量化")
                 load_in_4bit = False

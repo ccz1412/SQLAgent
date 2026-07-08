@@ -1,5 +1,5 @@
 """
-Clause 级 SQL 纠错模块
+Clause 级 SQL 纠错模块 v2
 
 功能：
 1. 定位 SQL 中的错误 clause（WHERE, JOIN, GROUP BY 等）
@@ -10,6 +10,8 @@ Clause 级 SQL 纠错模块
 - 规则纠错：基于 SQL 执行错误信息
 - 模型纠错：调用本地小模型或 API 大模型
 - GRPO 纠错：预留接口，后续接入训练好的模型
+
+所有 Prompt 模板统一从 src/prompts/prompt_templates.py 导入。
 
 使用示例：
     from src.correction.clause_corrector import ClauseCorrector
@@ -35,6 +37,10 @@ sys.path.insert(0, str(project_root))
 
 from src.utils.logger import get_logger
 from src.utils.helpers import clean_sql
+from src.prompts.prompt_templates import (
+    CLAUSE_CORRECTION_SYSTEM,
+    build_clause_correction_prompt,
+)
 
 logger = get_logger(__name__)
 
@@ -232,20 +238,25 @@ class ClauseCorrector:
         调用 API 大模型进行纠错
         
         策略：
-        1. 构造包含错误 SQL、错误信息、schema 的 prompt
+        1. 使用集中式 Prompt 模板构造请求
         2. 让大模型生成纠正后的 SQL
         3. 解析返回结果
         """
         logger.info("调用 API 大模型进行纠错...")
         
-        # 构造 prompt
-        prompt = self._build_correction_prompt(sql, error_clause, schema, question)
+        # 使用集中式 Prompt 构建
+        prompt = build_clause_correction_prompt(
+            sql=sql,
+            error_clause=error_clause,
+            schema=schema,
+            question=question
+        )
         
         # 调用 API
         from src.call_api.qwen_client import chat
         
         messages = [
-            {"role": "system", "content": "你是一个 SQL 纠错专家。请根据错误信息和数据库 schema，修正错误的 SQL。"},
+            {"role": "system", "content": CLAUSE_CORRECTION_SYSTEM},
             {"role": "user", "content": prompt}
         ]
         
@@ -268,24 +279,6 @@ class ClauseCorrector:
         """
         logger.warning("GRPO 纠错功能待实现，降级为 API 纠错")
         return self._correct_by_api(sql, error_clause, schema, question)
-    
-    def _build_correction_prompt(self, sql: str, error_clause: str, schema: str, question: str) -> str:
-        """构造纠错 prompt"""
-        prompt = f"""用户问题：{question}
-
-数据库 Schema：
-{schema}
-
-错误的 SQL：
-{sql}
-
-错误 clause：{error_clause}
-
-错误信息：执行失败
-
-请修正上述 SQL，使其能正确执行并返回用户问题的答案。只输出修正后的 SQL，不要输出其他内容。
-"""
-        return prompt
     
     def _extract_sql_from_response(self, response: str) -> Optional[str]:
         """从 API 响应中提取 SQL"""
